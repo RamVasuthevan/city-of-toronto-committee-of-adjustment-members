@@ -10,16 +10,42 @@ def get_biography(member_id):
     soup = BeautifulSoup(response.text, 'html.parser')
     biography_div = soup.select_one('.biography')
     
-    if not biography_div:
-        return 'No biography available'
+    # Remove h1 tags from the biography div if biography_div exists
+    if biography_div:
+        for h1 in biography_div.find_all('h1'):
+            h1.decompose()
+            
+        # Get the text from the biography div
+        biography_text = biography_div.get_text(separator=' ', strip=True)
+        return biography_text
     
-    # Remove h1 tags from the biography div
-    for h1 in biography_div.find_all('h1'):
-        h1.decompose()
-        
-    # Get the text from the biography div
-    biography_text = biography_div.get_text(separator=' ', strip=True)
-    return biography_text
+    return ''
+
+# Function to get additional member data
+def get_additional_member_data(member_id):
+    url = 'https://secure.toronto.ca/pa/appointment/aptForMemberJtable.json'
+    data = {
+        'memberId': member_id,
+        'membership': 'All'
+    }
+    
+    response = requests.post(url, data=data)
+    response.encoding = 'utf-8'  # Ensure the response is treated as UTF-8
+    additional_data = response.json()
+
+    # Filter the additional data to include only the required fields
+    filtered_additional_data = [
+        {
+            'role': record.get('role', ''),
+            'decisionBodyName': record.get('decisionBodyName', ''),
+            'appointmentEndDate': record.get('appointmentEndDate', ''),
+            'appointmentStartDate': record.get('appointmentStartDate', ''),
+            'panelName': record.get('panelName', '')
+        }
+        for record in additional_data.get('Records', [])
+    ]
+    
+    return filtered_additional_data
 
 # Main function to get appointment data and biographies
 def main():
@@ -34,17 +60,17 @@ def main():
     response.encoding = 'utf-8'  # Ensure the response is treated as UTF-8
     response_data = response.json()
 
-    # Extract relevant columns and add biography
+    # Extract relevant columns and add biography and additional data
     filtered_records = []
     for record in response_data['Records']:
         member_id = record['memberId']
         biography = get_biography(member_id)
+        additional_data = get_additional_member_data(member_id)
         filtered_record = {
             'memberName': record['memberName'],
-            'appointmentStartDate': record['appointmentStartDate'],
-            'appointmentEndDate': record['appointmentEndDate'],
             'memberId': member_id,
-            'biography': biography
+            'biography': biography,
+            'additionalData': additional_data
         }
         filtered_records.append(filtered_record)
 
